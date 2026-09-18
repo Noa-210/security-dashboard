@@ -473,7 +473,7 @@
     "broker.emqx.io";
 
   const MQTT_PORT =
-    8083;
+    8084;
 
   const TOPIC_TELEMETRY =
     "home/security/telemetry";
@@ -588,60 +588,19 @@
 
 
     client.connect({
-
-      useSSL: false,
-
-      timeout: 10,
-
-
-      onSuccess: function() {
-
-        console.log(
-          "MQTT connected!"
-        );
-
-
+    useSSL: true,
+    onSuccess: function() {
+        console.log("Đã kết nối MQTT thành công!");
         updateMQTTStatus(
           "ĐÃ KẾT NỐI",
           "status-normal"
-        );
-
-
-        client.subscribe(
-          TOPIC_TELEMETRY
-        );
-
-
-        console.log(
-          "Subscribed:",
-          TOPIC_TELEMETRY
-        );
-
-      },
-
-
-      onFailure: function(error) {
-
-        console.error(
-          "MQTT connection failed:",
-          error.errorMessage
-        );
-
-
-        updateMQTTStatus(
-          "KẾT NỐI THẤT BẠI",
-          "status-alarm"
-        );
-
-
-        setTimeout(
-          connectMQTT,
-          5000
-        );
-
-      }
-
-    });
+    );
+        client.subscribe(TOPIC_TELEMETRY);
+    },
+    onFailure: function(error) {
+        console.error("MQTT connection failed:", error);
+    }
+});
 
   }
 
