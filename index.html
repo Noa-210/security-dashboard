@@ -1,0 +1,1066 @@
+```html
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>IoT Security Dashboard</title>
+
+  <!-- MQTT -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+
+      font-family: Arial, sans-serif;
+
+      background: #1e1e2f;
+
+      color: white;
+
+      margin: 0;
+
+      padding: 15px;
+
+    }
+
+    .container {
+
+      max-width: 900px;
+
+      margin: auto;
+
+    }
+
+    h2 {
+
+      text-align: center;
+
+      margin-bottom: 20px;
+
+    }
+
+    .card {
+
+      background: #27293d;
+
+      padding: 18px;
+
+      margin-bottom: 15px;
+
+      border-radius: 12px;
+
+      box-shadow:
+        0 4px 10px rgba(0,0,0,0.25);
+
+    }
+
+    .status {
+
+      font-weight: bold;
+
+      padding: 6px 12px;
+
+      border-radius: 6px;
+
+      display: inline-block;
+
+    }
+
+    .status-normal {
+
+      background: #28a745;
+
+    }
+
+    .status-alarm {
+
+      background: #dc3545;
+
+      animation: blink 1s infinite;
+
+    }
+
+    .status-warning {
+
+      background: #ffc107;
+
+      color: black;
+
+    }
+
+    .status-offline {
+
+      background: #6c757d;
+
+    }
+
+    @keyframes blink {
+
+      50% {
+        opacity: 0.5;
+      }
+
+    }
+
+    button {
+
+      padding: 11px 15px;
+
+      margin: 5px;
+
+      border: none;
+
+      border-radius: 6px;
+
+      font-weight: bold;
+
+      cursor: pointer;
+
+      color: white;
+
+    }
+
+    button:active {
+
+      transform: scale(0.97);
+
+    }
+
+    .btn-disarm {
+
+      background: #6c757d;
+
+    }
+
+    .btn-arm {
+
+      background: #007bff;
+
+    }
+
+    .btn-emergency {
+
+      background: #dc3545;
+
+    }
+
+    input[type=range] {
+
+      width: 100%;
+
+    }
+
+    .sensor-grid {
+
+      display: grid;
+
+      grid-template-columns:
+        repeat(2, 1fr);
+
+      gap: 10px;
+
+    }
+
+    .sensor {
+
+      background: #32344d;
+
+      padding: 15px;
+
+      border-radius: 8px;
+
+    }
+
+    .sensor-value {
+
+      font-size: 22px;
+
+      font-weight: bold;
+
+      margin-top: 5px;
+
+    }
+
+    .connection {
+
+      text-align: center;
+
+      margin-bottom: 15px;
+
+    }
+
+    canvas {
+
+      max-height: 300px;
+
+    }
+
+    @media (max-width: 600px) {
+
+      body {
+
+        padding: 10px;
+
+      }
+
+      h2 {
+
+        font-size: 20px;
+
+      }
+
+      button {
+
+        width: 100%;
+
+        margin: 5px 0;
+
+      }
+
+      .sensor-grid {
+
+        grid-template-columns: 1fr;
+
+      }
+
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+  <h2>
+    🛡️ Trạm Quản lý An ninh IoT
+  </h2>
+
+
+  <!-- MQTT STATUS -->
+
+  <div class="connection">
+
+    MQTT:
+
+    <span
+      id="mqtt-status"
+      class="status status-offline"
+    >
+      ĐANG KẾT NỐI...
+    </span>
+
+  </div>
+
+
+  <!-- SECURITY -->
+
+  <div class="card">
+
+    <h3>
+      🔐 Trạng thái An ninh
+    </h3>
+
+    <p>
+
+      Trạng thái:
+
+      <span
+        id="alarm-status"
+        class="status status-normal"
+      >
+        BÌNH THƯỜNG
+      </span>
+
+    </p>
+
+
+    <p>
+
+      Chế độ:
+
+      <b id="current-mode">
+        ARMED
+      </b>
+
+    </p>
+
+
+    <p>
+      Điều khiển:
+    </p>
+
+
+    <button
+      class="btn-disarm"
+      onclick="setMode('DISARMED')"
+    >
+      🔓 DISARMED
+    </button>
+
+
+    <button
+      class="btn-arm"
+      onclick="setMode('ARMED')"
+    >
+      🔒 ARMED
+    </button>
+
+
+    <button
+      class="btn-emergency"
+      onclick="setMode('EMERGENCY')"
+    >
+      🚨 SOS KHẨN CẤP
+    </button>
+
+  </div>
+
+
+  <!-- SENSOR STATUS -->
+
+  <div class="card">
+
+    <h3>
+      📡 Cảm biến
+    </h3>
+
+
+    <div class="sensor-grid">
+
+
+      <div class="sensor">
+
+        <div>
+          PIR Motion
+        </div>
+
+        <div
+          id="pir-status"
+          class="sensor-value"
+        >
+          Không phát hiện
+        </div>
+
+      </div>
+
+
+      <div class="sensor">
+
+        <div>
+          Ánh sáng
+        </div>
+
+        <div
+          id="light-status"
+          class="sensor-value"
+        >
+          Đang đọc...
+        </div>
+
+      </div>
+
+
+      <div class="sensor">
+
+        <div>
+          LDR
+        </div>
+
+        <div
+          id="ldr-value"
+          class="sensor-value"
+        >
+          0
+        </div>
+
+      </div>
+
+
+      <div class="sensor">
+
+        <div>
+          Alarm
+        </div>
+
+        <div
+          id="alarm-value"
+          class="sensor-value"
+        >
+          OFF
+        </div>
+
+      </div>
+
+
+    </div>
+
+  </div>
+
+
+  <!-- PWM -->
+
+  <div class="card">
+
+    <h3>
+      💡 Điều khiển Đèn PWM
+    </h3>
+
+    <p>
+
+      Độ sáng:
+
+      <b id="pwm-val">
+        80
+      </b>
+
+      / 255
+
+    </p>
+
+
+    <input
+      type="range"
+      id="pwm-slider"
+      min="0"
+      max="255"
+      value="80"
+      oninput="showPWM(this.value)"
+      onchange="setPWM(this.value)"
+    >
+
+  </div>
+
+
+  <!-- LDR CHART -->
+
+  <div class="card">
+
+    <h3>
+      📊 Cường độ Ánh sáng
+    </h3>
+
+    <canvas id="ldrChart"></canvas>
+
+  </div>
+
+</div>
+
+
+<script>
+
+  // MQTT CONFIG
+
+  const MQTT_HOST =
+    "broker.emqx.io";
+
+  const MQTT_PORT =
+    8083;
+
+  const TOPIC_TELEMETRY =
+    "home/security/telemetry";
+
+  const TOPIC_COMMAND =
+    "home/security/command";
+
+
+  // MQTT CLIENT
+
+  let client;
+
+
+  function createMQTTClient() {
+
+    const clientId =
+      "web_security_" +
+      Math.random()
+        .toString(16)
+        .substring(2, 10);
+
+
+    client =
+      new Paho.MQTT.Client(
+        MQTT_HOST,
+        MQTT_PORT,
+        clientId
+      );
+
+
+    // Connection lost
+
+    client.onConnectionLost =
+      function(responseObject) {
+
+        console.log(
+          "MQTT disconnected:",
+          responseObject.errorMessage
+        );
+
+
+        updateMQTTStatus(
+          "MẤT KẾT NỐI",
+          "status-offline"
+        );
+
+
+        // Tự kết nối lại sau 3 giây
+
+        setTimeout(
+          connectMQTT,
+          3000
+        );
+
+      };
+
+
+    // Message arrived
+
+    client.onMessageArrived =
+      function(message) {
+
+        console.log(
+          "MQTT:",
+          message.payloadString
+        );
+
+
+        try {
+
+          const data =
+            JSON.parse(
+              message.payloadString
+            );
+
+
+          updateDashboard(data);
+
+
+        } catch(error) {
+
+          console.error(
+            "JSON error:",
+            error
+          );
+
+        }
+
+      };
+
+  }
+
+
+  // CONNECT MQTT
+
+  function connectMQTT() {
+
+    if (
+      client &&
+      client.isConnected()
+    ) {
+
+      return;
+
+    }
+
+
+    updateMQTTStatus(
+      "ĐANG KẾT NỐI...",
+      "status-warning"
+    );
+
+
+    client.connect({
+
+      useSSL: false,
+
+      timeout: 10,
+
+
+      onSuccess: function() {
+
+        console.log(
+          "MQTT connected!"
+        );
+
+
+        updateMQTTStatus(
+          "ĐÃ KẾT NỐI",
+          "status-normal"
+        );
+
+
+        client.subscribe(
+          TOPIC_TELEMETRY
+        );
+
+
+        console.log(
+          "Subscribed:",
+          TOPIC_TELEMETRY
+        );
+
+      },
+
+
+      onFailure: function(error) {
+
+        console.error(
+          "MQTT connection failed:",
+          error.errorMessage
+        );
+
+
+        updateMQTTStatus(
+          "KẾT NỐI THẤT BẠI",
+          "status-alarm"
+        );
+
+
+        setTimeout(
+          connectMQTT,
+          5000
+        );
+
+      }
+
+    });
+
+  }
+
+
+  // MQTT STATUS UI
+
+  function updateMQTTStatus(
+    text,
+    className
+  ) {
+
+    const element =
+      document.getElementById(
+        "mqtt-status"
+      );
+
+
+    element.innerText =
+      text;
+
+
+    element.className =
+      "status " +
+      className;
+
+  }
+
+
+  // UPDATE DASHBOARD
+
+  function updateDashboard(data) {
+
+
+    // MODE
+
+    if (
+      data.mode !== undefined
+    ) {
+
+      document.getElementById(
+        "current-mode"
+      ).innerText =
+        data.mode;
+
+    }
+
+
+    // PWM
+
+    if (
+      data.pwm !== undefined
+    ) {
+
+      document.getElementById(
+        "pwm-val"
+      ).innerText =
+        data.pwm;
+
+
+      document.getElementById(
+        "pwm-slider"
+      ).value =
+        data.pwm;
+
+    }
+
+
+    // PIR
+
+    if (
+      data.pir !== undefined
+    ) {
+
+      const pirElement =
+        document.getElementById(
+          "pir-status"
+        );
+
+
+      if (data.pir) {
+
+        pirElement.innerText =
+          "⚠️ PHÁT HIỆN";
+
+        pirElement.style.color =
+          "#ff4d4d";
+
+      } else {
+
+        pirElement.innerText =
+          "Không phát hiện";
+
+        pirElement.style.color =
+          "#28a745";
+
+      }
+
+    }
+
+
+    // LDR
+
+    if (
+      data.ldr !== undefined
+    ) {
+
+      document.getElementById(
+        "ldr-value"
+      ).innerText =
+        data.ldr;
+
+
+      updateChart(
+        data.ldr
+      );
+
+    }
+
+
+    // LIGHT
+
+    if (
+      data.dark !== undefined
+    ) {
+
+      const lightElement =
+        document.getElementById(
+          "light-status"
+        );
+
+
+      if (data.dark) {
+
+        lightElement.innerText =
+          "🌙 TRỜI TỐI";
+
+      } else {
+
+        lightElement.innerText =
+          "☀️ TRỜI SÁNG";
+
+      }
+
+    }
+
+
+    // ALARM
+
+    if (
+      data.alarm !== undefined
+    ) {
+
+      const alarmElement =
+        document.getElementById(
+          "alarm-status"
+        );
+
+
+      const alarmValue =
+        document.getElementById(
+          "alarm-value"
+        );
+
+
+      if (data.alarm) {
+
+        alarmElement.innerText =
+          "🚨 CẢNH BÁO: ĐỘT NHẬP!";
+
+
+        alarmElement.className =
+          "status status-alarm";
+
+
+        alarmValue.innerText =
+          "ON";
+
+
+      } else {
+
+        alarmElement.innerText =
+          "BÌNH THƯỜNG";
+
+
+        alarmElement.className =
+          "status status-normal";
+
+
+        alarmValue.innerText =
+          "OFF";
+
+      }
+
+    }
+
+  }
+
+
+  // SET MODE
+
+  function setMode(mode) {
+
+    if (
+      !client ||
+      !client.isConnected()
+    ) {
+
+      alert(
+        "Web chưa kết nối MQTT!"
+      );
+
+      return;
+
+    }
+
+
+    const payload =
+      JSON.stringify({
+        mode: mode
+      });
+
+
+    const message =
+      new Paho.MQTT.Message(
+        payload
+      );
+
+
+    message.destinationName =
+      TOPIC_COMMAND;
+
+
+    client.send(
+      message
+    );
+
+
+    console.log(
+      "Command:",
+      payload
+    );
+
+  }
+
+
+  // PWM PREVIEW
+
+  function showPWM(value) {
+
+    document.getElementById(
+      "pwm-val"
+    ).innerText =
+      value;
+
+  }
+
+
+  // SET PWM
+
+  function setPWM(value) {
+
+    if (
+      !client ||
+      !client.isConnected()
+    ) {
+
+      return;
+
+    }
+
+
+    const payload =
+      JSON.stringify({
+
+        pwm:
+          parseInt(value)
+
+      });
+
+
+    const message =
+      new Paho.MQTT.Message(
+        payload
+      );
+
+
+    message.destinationName =
+      TOPIC_COMMAND;
+
+
+    client.send(
+      message
+    );
+
+  }
+
+
+  // CHART
+
+  const ctx =
+    document
+      .getElementById(
+        "ldrChart"
+      )
+      .getContext("2d");
+
+
+  const chart =
+    new Chart(
+      ctx,
+      {
+
+        type: "line",
+
+
+        data: {
+
+          labels: [],
+
+
+          datasets: [
+
+            {
+
+              label:
+                "Giá trị LDR",
+
+              data: [],
+
+              borderColor:
+                "#00d6ff",
+
+              fill: false,
+
+              tension: 0.25
+
+            }
+
+          ]
+
+        },
+
+
+        options: {
+
+          responsive: true,
+
+          animation: false,
+
+
+          scales: {
+
+            x: {
+              display: false
+            },
+
+
+            y: {
+
+              beginAtZero: true,
+
+              suggestedMax: 4095
+
+            }
+
+          }
+
+        }
+
+      }
+    );
+
+
+  // UPDATE CHART
+
+  function updateChart(value) {
+
+    const now =
+      new Date()
+        .toLocaleTimeString();
+
+
+    chart.data.labels.push(
+      now
+    );
+
+
+    chart.data.datasets[0].data.push(
+      value
+    );
+
+
+    // Giữ tối đa 20 điểm
+
+    if (
+      chart.data.labels.length > 20
+    ) {
+
+      chart.data.labels.shift();
+
+      chart.data.datasets[0].data.shift();
+
+    }
+
+
+    chart.update();
+
+  }
+
+
+  // START
+
+  createMQTTClient();
+
+  connectMQTT();
+
+</script>
+
+</body>
+
+</html>
+```
